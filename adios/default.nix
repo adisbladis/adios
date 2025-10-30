@@ -9,7 +9,10 @@ let
     mapAttrs
     concatMap
     isAttrs
+    length
     genericClosure
+    genList
+    elemAt
     filter
     isString
     split
@@ -189,24 +192,38 @@ let
       ) (attrNames options)
     );
 
-  # Split string by separator
-  splitString = sep: s: filter isString (split sep s);
+  # Split string on `.`
+  splitModulePath = s: filter isString (split "\\." s);
+
+  removeTail = list: genList (elemAt list) (length list - 1);
 
   # Return absolute module path relative to pwd
   absModulePath =
-    pwd: path: toString (if substring 0 1 path == "/" then /. + path else /. + pwd + "/${path}");
+    pwd: path:
+    let
+      tokens = splitModulePath pwd;
+    in
+    if substring 0 1 path == "." then
+      path
+    else if substring 0 1 path == "^" then
+      if length tokens == 2 then "." else concatStringsSep "." (removeTail tokens)
+    else
+      throw ''
+        Module path `${path}` in module directory `${pwd}` didn't start with a valid prefix. Paths
+        should be prefixed with `^` or `.`.
+      '';
 
-  # Get a module by it's / delimited path
+  # Get a module by it's . delimited path
   getModule =
     module: name:
     assert name != "";
-    if name == "/" then
+    if name == "." then
       module
     else
       let
-        tokens = splitString "/" name;
+        tokens = splitModulePath name;
       in
-      # Assert that module input begins with a /
+      # Assert that module input begins with a .
       assert head tokens == "";
       foldl' (
         acc: tok:
@@ -306,7 +323,7 @@ let
         module:
         let
           # Create submodule path string
-          modulePath = "/" + concatStringsSep "/" modulePath';
+          modulePath = "." + concatStringsSep "." modulePath';
 
           # Module arguments
           args' =

@@ -15,7 +15,7 @@ in
 
   inputs = {
     "root" = {
-      path = "..";
+      path = "^";
     };
   };
 

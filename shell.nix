@@ -15,7 +15,7 @@ let
       # Apply options to tree
       eval = tree.eval {
         options = {
-          "/" = {
+          "." = {
             inherit pkgs;
           };
         };
