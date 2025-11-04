@@ -22,7 +22,7 @@ let
 
     inputs = {
       "root" = {
-        path = "..";
+        path = "^";
       };
     };
 

@@ -17,7 +17,7 @@ in
 
   inputs = {
     nixpkgs = {
-      path = "/nixpkgs";
+      path = ".nixpkgs";
     };
   };
 

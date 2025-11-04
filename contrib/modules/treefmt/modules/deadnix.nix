@@ -11,7 +11,7 @@
 
   inputs = {
     "treefmt" = {
-      path = "..";
+      path = "^";
     };
   };
 

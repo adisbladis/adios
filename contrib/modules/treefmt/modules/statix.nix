@@ -19,7 +19,7 @@ in
 
   inputs = {
     "treefmt" = {
-      path = "..";
+      path = "^";
     };
   };
 
