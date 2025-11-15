@@ -13,7 +13,7 @@ let
       tree = adios adios-contrib;
 
       # Apply options to tree
-      eval = tree.eval {
+      initializedTree = tree.init {
         options = {
           "/nixpkgs" = {
             inherit pkgs;
@@ -22,7 +22,7 @@ let
       };
 
       # Call treefmt contracts with applied pkgs
-      treefmt = eval.tree.modules.treefmt;
+      treefmt = initializedTree.root.modules.treefmt;
       fmts = treefmt.modules;
     in
     (treefmt {

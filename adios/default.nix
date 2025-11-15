@@ -215,17 +215,24 @@ let
         tokens = splitString "/" name;
       in
       # Assert that module input begins with a /
-      assert head tokens == "";
-      foldl' (
-        module: tok:
-        if !module.modules ? ${tok} then
-          throw ''
-            Module path `${tok}` wasn't a child module of `${module.name or anonymousModuleName}`.
-            Valid children of `${module.name}`: [${concatStringsSep ", " (attrNames module.modules)}]
-          ''
-        else
-          module.modules.${tok}
-      ) module (tail tokens);
+      if head tokens != "" then
+        throw ''
+          Module path `${name}` didn't start with a slash, when it was expected to.
+          This likely means you used the incorrect name during the initialization stage.
+          A module path should look something like "/nixpkgs", which refers to `root.modules.nixpkgs`,
+          and lets us set the options for that module.
+        ''
+      else
+        foldl' (
+          module: tok:
+          if !module.modules ? ${tok} then
+            throw ''
+              Module path `${tok}` wasn't a child module of `${module.name or anonymousModuleName}`.
+              Valid children of `${module.name}`: [${concatStringsSep ", " (attrNames module.modules)}]
+            ''
+          else
+            module.modules.${tok}
+        ) module (tail tokens);
 
   # Resolve required module dependencies for defined config options
   resolveTree =
@@ -364,7 +371,7 @@ let
     root: prevEval:
     {
       # Updated options
-      options,
+      options ? { },
       # Whether to allow re-resolving
       resolve ? true,
     }:
@@ -412,7 +419,7 @@ let
 
         result = {
           # Overriden eval context
-          eval = evalModuleTree {
+          evalParams = evalModuleTree {
             inherit resolution;
             options = options';
             memoArgs = removeAttrs prevEval.args diff;
@@ -420,14 +427,14 @@ let
           };
 
           # Tree context
-          tree = applyTreeOptions {
+          root = applyTreeOptions {
             inherit root;
             options = options';
-            inherit (result.eval) args;
+            inherit (result.evalParams) args;
           };
 
           # Chained override function
-          override = mkOverride root result.eval;
+          override = mkOverride root result.evalParams;
         };
       in
       result
@@ -442,29 +449,29 @@ let
     {
       root = root';
 
-      eval =
+      init =
         {
-          options,
+          options ? { },
         }:
         optionsType.check options (
           let
             result = {
               # Eval context
-              eval =
+              evalParams =
                 let
                   resolution = resolveTree root' (attrNames options);
                 in
                 evalModuleTree { inherit resolution options; };
 
               # Tree context
-              tree = applyTreeOptions {
+              root = applyTreeOptions {
                 root = root';
                 inherit options;
-                inherit (result.eval) args;
+                inherit (result.evalParams) args;
               };
 
               # Chained override function
-              override = mkOverride root' result.eval;
+              override = mkOverride root' result.evalParams;
             };
           in
           result
