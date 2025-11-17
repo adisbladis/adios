@@ -1,4 +1,7 @@
-{ types }:
+{ adios }:
+let
+  inherit (adios) types;
+in
 {
   name = "callable-module";
 
@@ -9,8 +12,12 @@
     };
   };
 
-  impl = args: {
-    # Evaluating someValue.bar will type check args.foo
-    someValue.bar = args.foo;
-  };
+  # impl takes the values set for each option. The user can specify their own
+  # value for `options.foo`, or just fall back on the default
+  impl =
+    { options }:
+    {
+      # Evaluating someValue.bar will typecheck options.foo
+      someValue.bar = options.foo;
+    };
 }
