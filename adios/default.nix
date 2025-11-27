@@ -3,6 +3,11 @@ let
     korora = import ../types/types.nix;
   };
 
+  # Helper functions for users, accessed through `adios.lib`
+  lib = {
+    importModules = import ./lib/importModules.nix { inherit adios; };
+  };
+
   inherit (builtins)
     attrNames
     listToAttrs
@@ -481,7 +486,7 @@ let
   adios =
     (loadModule {
       name = "adios";
-      inherit types;
+      inherit types lib;
     })
     // {
       # Overwrite default functor with one that _does not_ do type checking.
