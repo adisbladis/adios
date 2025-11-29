@@ -75,30 +75,6 @@ let
     inputs = attrsOf modules.input;
 
     lib = attrs;
-
-    moduleDef =
-      (struct "moduleDef" {
-        name = optionalAttr string;
-        modules = optionalAttr (attrsOf modules.module);
-        types = optionalAttr typesT;
-        impl = optionalAttr function;
-        options = optionalAttr modules.options;
-        inputs = optionalAttr modules.inputs;
-      }).override
-        {
-          verify =
-            self:
-            (if self ? type && self ? options then "'type' is mutually exclusive with 'options'" else null);
-        };
-
-    module = struct "module" {
-      name = optionalAttr string;
-      modules = attrsOf modules.module;
-      types = typesT;
-      inherit (modules) options inputs;
-      inherit type;
-      __functor = optionalAttr function;
-    };
   };
 
 in
