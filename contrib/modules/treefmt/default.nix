@@ -5,11 +5,7 @@ in
 {
   name = "treefmt";
 
-  modules = {
-    nixfmt = import ./modules/nixfmt.nix { inherit adios; };
-    statix = import ./modules/statix.nix { inherit adios; };
-    deadnix = import ./modules/deadnix.nix { inherit adios; };
-  };
+  modules = adios.lib.importModules ./modules;
 
   inputs = {
     "nixpkgs" = {

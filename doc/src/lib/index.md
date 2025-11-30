@@ -39,7 +39,9 @@ depend on another module defined within its folder, it should import those modul
 ### Limitations
 
 `importTree` expects all modules to:
-- be defined in subfolders, under `$MODULE_NAME/default.nix`.
+- Either be defined as
+  - a subfolder, under `$MODULE_NAME/default.nix`.
+  - a Nix file, under `$MODULE_NAME.nix`.
 - take `{ adios }:` as the file's inputs
 - use the same name as the folder it's contained within
 
