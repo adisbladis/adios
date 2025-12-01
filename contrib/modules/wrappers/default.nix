@@ -74,20 +74,17 @@ in
     let
       inherit (inputs."nixpkgs") pkgs;
     in
-    {
-      package =
-        pkgs.runCommand options.name
-          {
-            nativeBuildInputs = [
-              pkgs.makeBinaryWrapper
-              pkgs.python3
-              pkgs.lndir
-            ];
-            __structuredAttrs = true;
-            inherit options;
-          }
-          ''
-            source <(python3 ${./builder.py})
-          '';
-    };
+    pkgs.runCommand options.name
+      {
+        nativeBuildInputs = [
+          pkgs.makeBinaryWrapper
+          pkgs.python3
+          pkgs.lndir
+        ];
+        __structuredAttrs = true;
+        inherit options;
+      }
+      ''
+        source <(python3 ${./builder.py})
+      '';
 }

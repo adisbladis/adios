@@ -100,27 +100,24 @@ in
       configFile = (pkgs.formats.toml { }).generate "treefmt.toml" config;
 
     in
-    {
-      package =
-        pkgs.runCommand "treefmt-adios"
-          {
-            meta.mainProgram = "treefmt-adios";
-          }
-          ''
-            mkdir -p $out/bin
+    pkgs.runCommand "treefmt-adios"
+      {
+        meta.mainProgram = "treefmt-adios";
+      }
+      ''
+        mkdir -p $out/bin
 
-            cat > $out/bin/$name << EOF
-            #!${pkgs.runtimeShell}
-            set -euo pipefail
-            unset PRJ_ROOT
-            exec ${getExe options.package} \
-              --config-file=${configFile} \
-              --tree-root-file=${options.projectRootFile} \
-              "\$@"
-            EOF
-            chmod +x $out/bin/$name
+        cat > $out/bin/$name << EOF
+        #!${pkgs.runtimeShell}
+        set -euo pipefail
+        unset PRJ_ROOT
+        exec ${getExe options.package} \
+          --config-file=${configFile} \
+          --tree-root-file=${options.projectRootFile} \
+          "\$@"
+        EOF
+        chmod +x $out/bin/$name
 
-            ln -s $out/bin/$name $out/bin/treefmt
-          '';
-    };
+        ln -s $out/bin/$name $out/bin/treefmt
+      '';
 }

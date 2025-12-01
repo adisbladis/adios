@@ -8,12 +8,12 @@ let
 
   treefmt =
     let
-      # Load a module definition tree.
+      # Load the root module into adios
       # This type checks modules and provides the tree API.
-      tree = adios adios-contrib;
+      root = adios adios-contrib;
 
       # Apply options to tree
-      eval = tree.eval {
+      tree = root.eval {
         options = {
           "/nixpkgs" = {
             inherit pkgs;
@@ -22,17 +22,17 @@ let
       };
 
       # Call treefmt contracts with applied pkgs
-      treefmt = eval.root.modules.treefmt;
+      treefmt = tree.root.modules.treefmt;
       fmts = treefmt.modules;
     in
-    (treefmt {
+    treefmt {
       projectRootFile = "flake.nix";
       formatters = [
         (fmts.nixfmt { })
         (fmts.deadnix { })
         (fmts.statix { })
       ];
-    }).package;
+    };
 
 in
 pkgs.mkShell {
