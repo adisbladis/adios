@@ -165,18 +165,6 @@ let
     })
     // (optionalAttrs (def ? impl) {
       impl = checkType "${errorPrefix}: while checking 'impl'" types.function def.impl;
-
-      # Make contract callable
-      __functor =
-        self:
-        {
-          options ? { },
-          inputs ? { },
-        }:
-        let
-          args' = computeOptions args' errorPrefix self.options { inherit options inputs; };
-        in
-        callFunction self.impl args';
     });
 
   # Merge lhs & rhs recursing into suboptions
