@@ -37,7 +37,7 @@ listToAttrs (
 // listToAttrs (
   concatMap (
     filename:
-    if files.${filename} == "directory" then
+    if filename == "default.nix" || files.${filename} == "directory" then
       [ ]
     else
       (
