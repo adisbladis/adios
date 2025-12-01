@@ -2,7 +2,7 @@
 
 ## `importModules`
 
-Adios comes with a function `importModules`, that will automatically import all the modles in a directory (provided they
+Adios comes with a function `importModules`, that will automatically import all the modules in a directory (provided they
 follow a certain schema).
 
 ### Usage
@@ -39,7 +39,7 @@ depend on another module defined within its folder, it should import those modul
 ### Limitations
 
 `importTree` expects all modules to:
-- Either be defined as
+- Either be defined as:
   - a subfolder, under `$MODULE_NAME/default.nix`.
   - a Nix file, under `$MODULE_NAME.nix` (excluding `default.nix`).
 - take `{ adios }:` as the file's inputs
