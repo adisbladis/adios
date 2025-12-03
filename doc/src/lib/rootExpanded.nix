@@ -8,4 +8,3 @@
     bar = import ./bar { inherit adios; };
   };
 }
-
