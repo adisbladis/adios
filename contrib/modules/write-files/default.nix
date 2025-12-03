@@ -130,9 +130,7 @@ let
           '';
         };
       in
-      {
-        script = "${package}/script";
-      };
+      "${package}/script";
   };
 
 in
