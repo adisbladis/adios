@@ -165,18 +165,6 @@ let
     })
     // (optionalAttrs (def ? impl) {
       impl = checkType "${errorPrefix}: while checking 'impl'" types.function def.impl;
-
-      # Make contract callable
-      __functor =
-        self:
-        {
-          options ? { },
-          inputs ? { },
-        }:
-        let
-          args' = computeOptions args' errorPrefix self.options { inherit options inputs; };
-        in
-        callFunction self.impl args';
     });
 
   # Merge lhs & rhs recursing into suboptions
@@ -421,28 +409,26 @@ let
                 name: if resolution.${name}.inputs ? ${key} then [ { key = name; } ] else [ ]
               ) resolutionNames;
           });
-
-        result = {
-          # Overriden eval context
-          evalParams = evalModuleTree {
-            inherit resolution;
-            options = options';
-            memoArgs = removeAttrs prevEval.args diff;
-            memoResults = removeAttrs prevEval.results diff;
-          };
-
-          # Tree context
-          root = applyTreeOptions {
-            inherit root;
-            options = options';
-            inherit (result.evalParams) args;
-          };
-
-          # Chained override function
-          override = mkOverride root result.evalParams;
-        };
       in
-      result
+      rec {
+        # Overriden eval context
+        evalParams = evalModuleTree {
+          inherit resolution;
+          options = options';
+          memoArgs = removeAttrs prevEval.args diff;
+          memoResults = removeAttrs prevEval.results diff;
+        };
+
+        # Tree context
+        root = applyTreeOptions {
+          inherit root;
+          options = options';
+          inherit (evalParams) args;
+        };
+
+        # Chained override function
+        override = mkOverride root evalParams;
+      }
     );
 
   # Load a module tree recursively from root module
@@ -458,29 +444,24 @@ let
         {
           options ? { },
         }:
-        optionsType.check options (
-          let
-            result = {
-              # Eval context
-              evalParams =
-                let
-                  resolution = resolveTree root' (attrNames options);
-                in
-                evalModuleTree { inherit resolution options; };
+        optionsType.check options rec {
+          # Eval context
+          evalParams =
+            let
+              resolution = resolveTree root' (attrNames options);
+            in
+            evalModuleTree { inherit resolution options; };
 
-              # Tree context
-              root = applyTreeOptions {
-                root = root';
-                inherit options;
-                inherit (result.evalParams) args;
-              };
+          # Tree context
+          root = applyTreeOptions {
+            root = root';
+            inherit options;
+            inherit (evalParams) args;
+          };
 
-              # Chained override function
-              override = mkOverride root' result.evalParams;
-            };
-          in
-          result
-        );
+          # Chained override function
+          override = mkOverride root' evalParams;
+        };
     };
 
   adios =
