@@ -49,14 +49,16 @@ let
         in
         if err != null then (throw "${errorPrefix}: ${err}") else value;
     in
-    # Computed args fixpoint
-    self:
-    # Error prefix string
-    errorPrefix:
-    # Defined options
-    options:
-    # Passed options
-    args:
+    {
+      # Computed args fixpoint
+      args,
+      # Error prefix string
+      errorPrefix,
+      # Defined options
+      options,
+      # Passed options
+      passedArgs,
+    }:
     listToAttrs (
       concatMap (
         name:
@@ -65,11 +67,11 @@ let
           errorPrefix' = "${errorPrefix}: in option '${name}'";
         in
         # Explicitly passed value
-        if args ? ${name} then
+        if passedArgs ? ${name} then
           [
             {
               inherit name;
-              value = checkOption errorPrefix' option args.${name};
+              value = checkOption errorPrefix' option passedArgs.${name};
             }
           ]
         # Default value
@@ -86,13 +88,18 @@ let
             {
               # Compute value with args fixpoint
               inherit name;
-              value = checkOption errorPrefix' option (callFunction option.defaultFunc self);
+              value = checkOption errorPrefix' option (callFunction option.defaultFunc args);
             }
           ]
         # Compute nested options
         else if option ? options then
           let
-            value = computeOptions self errorPrefix' options.${name} (args.${name} or { });
+            value = computeOptions {
+              inherit args;
+              errorPrefix = errorPrefix';
+              options = options.${name};
+              passedArgs = passedArgs.${name} or { };
+            };
           in
           # Only return a value if suboptions actually returned anything
           if value != { } then [ { inherit name value; } ] else [ ]
@@ -265,9 +272,12 @@ let
       args =
         mapAttrs (modulePath: module: {
           inputs = mapAttrs (_: input: args.${input.path}.options) module.inputs;
-          options = computeOptions args.${modulePath} "while computing ${modulePath} args" module.options (
-            options.${modulePath} or { }
-          );
+          options = computeOptions {
+            args = args.${modulePath};
+            errorPrefix = "while computing ${modulePath} args";
+            inherit (module) options;
+            passedArgs = options.${modulePath} or { };
+          };
         }) resolution
         // memoArgs;
 
@@ -325,9 +335,12 @@ let
               inputs = mapAttrs (
                 _: input: (getModule tree' (absModulePath modulePath input.path)).args.options
               ) module.inputs;
-              options = computeOptions args' "while computing ${modulePath} args" module.options (
-                options.${modulePath} or { }
-              );
+              options = computeOptions {
+                args = args';
+                modulePath = "while computing ${modulePath} args";
+                inherit (module) options;
+                passedArgs = options.${modulePath} or { };
+              };
             };
         in
         module
@@ -349,7 +362,12 @@ let
               # Re-compute args fixpoint with passed args
               args = {
                 inherit (self.args) inputs;
-                options = computeOptions args "while calling ${modulePath}" module.options options';
+                options = computeOptions {
+                  inherit args;
+                  errorPrefix = "while calling ${modulePath}";
+                  inherit (module) options;
+                  passedArgs = options';
+                };
               };
             in
             # Call implementation
