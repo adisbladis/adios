@@ -24,14 +24,14 @@ let
   filenames = attrNames files;
 
   moduleDirs = filter (
-    name: files.${name} == "directory" && pathExists "${rootPath}/${name}/default.nix"
+    name: files.${name} == "directory" && pathExists "${toString rootPath}/${name}/default.nix"
   ) filenames;
 
 in
 listToAttrs (
   map (name: {
     inherit name;
-    value = import "${rootPath}/${name}/default.nix" moduleArgs;
+    value = import "${toString rootPath}/${name}/default.nix" moduleArgs;
   }) moduleDirs
 )
 // listToAttrs (
@@ -61,7 +61,7 @@ listToAttrs (
                   ''
                 else
                   moduleName;
-              value = import "${rootPath}/${filename}" moduleArgs;
+              value = import "${toString rootPath}/${filename}" moduleArgs;
             }
           ]
       )
