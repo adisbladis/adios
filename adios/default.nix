@@ -250,6 +250,18 @@ let
         })
     );
 
+  # When inspecting the args passed to a module within an `impl` or
+  # `defaultFunc`, include the functor to call the module's impl directly.
+  inspectImpl =
+    module: oldArgs:
+    if module ? impl then
+      oldArgs
+      // {
+        __functor = _: newArgs: module (mergeOptionsUnchecked module.options oldArgs newArgs);
+      }
+    else
+      oldArgs;
+
   evalModuleTree =
     {
       # Passed options
@@ -323,38 +335,63 @@ let
             # fall back to computing
             {
               inputs = mapAttrs (
-                _: input: (getModule tree' (absModulePath modulePath input.path)).args.options
+                _: input:
+                let
+                  inputPath = absModulePath modulePath input.path;
+                  module = getModule tree' inputPath;
+                in
+                module.args.options
+                // optionalAttrs (module ? impl) {
+                  # Make sure that when the functor is called, we recompute the options, so any
+                  # defaultFuncs are updated to use the "new" args passed via impl
+                  __functor =
+                    _: implArgs:
+                    let
+                      args' = {
+                        inherit (module.args) inputs;
+                        options = computeOptions args' "while calling ${inputPath}" module.options implArgs;
+                      };
+                    in
+                    module args'.options;
+                }
               ) module.inputs;
-              options = computeOptions args' "while computing ${modulePath} args" module.options (
-                options.${modulePath} or { }
+              options = inspectImpl self (
+                computeOptions args' "while computing ${modulePath} args" module.options (
+                  options.${modulePath} or { }
+                )
               );
             };
+
+          self =
+            module
+            // {
+              args = args';
+              # Recurse into child modules
+              modules = mapAttrs (moduleName: recurse (modulePath' ++ [ moduleName ])) module.modules;
+            }
+            // optionalAttrs (module ? impl) {
+              # Wrap module call with computed args
+              __functor =
+                let
+                  passedOptions = options.${modulePath} or { };
+                in
+                _: options:
+                let
+                  # Concat passed options with options passed to tree eval
+                  options' = mergeOptionsUnchecked self.options passedOptions options;
+                  # Re-compute args fixpoint with passed args
+                  args = {
+                    inherit (self.args) inputs;
+                    options = inspectImpl self (
+                      computeOptions args "while calling ${modulePath}" module.options options'
+                    );
+                  };
+                in
+                # Call implementation
+                callFunction self.impl args;
+            };
         in
-        module
-        // {
-          args = args';
-          # Recurse into child modules
-          modules = mapAttrs (moduleName: recurse (modulePath' ++ [ moduleName ])) module.modules;
-        }
-        // optionalAttrs (module ? impl) {
-          # Wrap module call with computed args
-          __functor =
-            let
-              passedOptions = options.${modulePath} or { };
-            in
-            self: options:
-            let
-              # Concat passed options with options passed to tree eval
-              options' = mergeOptionsUnchecked self.options passedOptions options;
-              # Re-compute args fixpoint with passed args
-              args = {
-                inherit (self.args) inputs;
-                options = computeOptions args "while calling ${modulePath}" module.options options';
-              };
-            in
-            # Call implementation
-            self.impl args;
-        };
+        self;
 
       tree' = recurse [ ] root;
     in
