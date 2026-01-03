@@ -6,6 +6,11 @@ let
   # Helper functions for users, accessed through `adios.lib`
   lib = {
     importModules = import ./lib/importModules.nix { inherit adios; };
+    mergeFuncs = {
+      concatLists = { mutators }: builtins.concatLists (attrValues mutators);
+      mergeAttrsRecursively = import ./lib/mergeAttrsRecursively.nix;
+      withPrio = import ./lib/withPrio.nix;
+    };
   };
 
   inherit (builtins)
@@ -39,6 +44,8 @@ let
   # Call a function with only it's supported attributes.
   callFunction = fn: attrs: fn (intersectAttrs (functionArgs fn) attrs);
 
+  printList = list: "[${concatStringsSep ", " list}]";
+
   # Compute options from defaults & provided args
   computeOptions =
     let
@@ -49,14 +56,18 @@ let
         in
         if err != null then (throw "${errorPrefix}: ${err}") else value;
     in
-    # Computed args fixpoint
-    self:
-    # Error prefix string
-    errorPrefix:
-    # Defined options
-    options:
-    # Passed options
-    args:
+    {
+      # Computed args fixpoint
+      self,
+      # Error prefix string
+      errorPrefix,
+      # Defined options
+      options,
+      # Passed options
+      args,
+      modulePath,
+      root ? null,
+    }:
     listToAttrs (
       concatMap (
         name:
@@ -89,10 +100,51 @@ let
               value = checkOption errorPrefix' option (callFunction option.defaultFunc self);
             }
           ]
+        else if (option.mutators or [ ]) != [ ] then
+          assert root != null;
+          [
+            {
+              inherit name;
+              value =
+                if types.modules.mutatedOption.verify option != null then
+                  throw ''
+                    ${errorPrefix}: in option '${name}': option listed mutators ${printList option.mutators},
+                    but a mergeFunc and/or mutatorType wasn't defined for the option
+                  ''
+                else
+                  checkOption errorPrefix' option (
+                    callFunction option.mergeFunc (
+                      self
+                      // {
+                        mutators = foldl' (
+                          acc:
+                          { resolution, mutatorPath }:
+                          # TODO: decide whether to error here, if a module didn't
+                          # mutate when it was supposed to
+                          if resolution.mutations ? ${modulePath}.${name} then
+                            acc
+                            // {
+                              ${mutatorPath} = checkOption (errorPrefix' + ": while checking type of mutator ${mutatorPath}") {
+                                type = option.mutatorType;
+                              } (callFunction resolution.mutations.${modulePath}.${name} resolution.args);
+                            }
+                          else
+                            acc
+                        ) { } (resolveMutators root modulePath (option.mutators or [ ]));
+                      }
+                    )
+                  );
+            }
+          ]
         # Compute nested options
         else if option ? options then
           let
-            value = computeOptions self errorPrefix' options.${name} (args.${name} or { });
+            value = computeOptions {
+              inherit self;
+              errorPrefix = errorPrefix';
+              options = options.${name};
+              args = args.${name} or { };
+            };
           in
           # Only return a value if suboptions actually returned anything
           if value != { } then [ { inherit name value; } ] else [ ]
@@ -163,6 +215,11 @@ let
     // (optionalAttrs (def ? name) {
       name = checkType "${errorPrefix}: while checking 'name'" types.string def.name;
     })
+    // (optionalAttrs (def ? mutations) {
+      mutations =
+        checkAttrsOf "${errorPrefix}: while checking 'mutations'" types.modules.mutation
+          def.mutations;
+    })
     // (optionalAttrs (def ? impl) {
       impl = checkType "${errorPrefix}: while checking 'impl'" types.function def.impl;
     });
@@ -221,7 +278,7 @@ let
           if !module.modules ? ${tok} then
             throw ''
               Module path `${tok}` wasn't a child module of `${module.name or anonymousModuleName}`.
-              Valid children of `${module.name}`: [${concatStringsSep ", " (attrNames module.modules)}]
+              Valid children of `${module.name}`: ${printList (attrNames module.modules)}
             ''
           else
             module.modules.${tok}
@@ -250,6 +307,18 @@ let
         })
     );
 
+  # When inspecting the args passed to a module within an `impl` or
+  # `defaultFunc`, include the functor to call the module's impl directly.
+  inspectImpl =
+    module: oldArgs:
+    if module ? impl then
+      oldArgs
+      // {
+        __functor = _: newArgs: module (mergeOptionsUnchecked module.options oldArgs newArgs);
+      }
+    else
+      oldArgs;
+
   evalModuleTree =
     {
       # Passed options
@@ -265,15 +334,20 @@ let
       args =
         mapAttrs (modulePath: module: {
           inputs = mapAttrs (_: input: args.${input.path}.options) module.inputs;
-          options = computeOptions args.${modulePath} "while computing ${modulePath} args" module.options (
-            options.${modulePath} or { }
-          );
+          options = computeOptions {
+            self = args.${modulePath};
+            errorPrefix = "while computing ${modulePath} args";
+            inherit (module) options;
+            args = options.${modulePath} or { };
+            inherit modulePath;
+          };
         }) resolution
         // memoArgs;
 
       inherit options resolution;
 
       # Module call results for each callable module in resolution
+      # TODO: actually use this somewhere other than `mkOverride`
       results =
         listToAttrs (
           concatMap (
@@ -294,6 +368,63 @@ let
         )
         // memoResults;
     };
+
+  computeArgs =
+    {
+      root,
+      module,
+      modulePath,
+      # Options to be injected
+      options,
+    }:
+    let
+      final = {
+        inputs = mapAttrs (
+          _: input:
+          let
+            # TODO: should modulePath be used here instead of root?
+            modulePath' = absModulePath root input.path;
+            module = getModule root modulePath';
+          in
+          module.args.options
+          // optionalAttrs (module ? impl) {
+            # Make sure that when the functor is called, we recompute the options, so any
+            # defaultFuncs are updated to use the "new" args passed via impl
+            __functor =
+              _: implArgs:
+              let
+                inputModuleArgs = {
+                  inherit (module.args) inputs;
+                  options = computeOptions {
+                    self = inputModuleArgs;
+                    errorPrefix = "while calling ${modulePath'}";
+                    inherit (module) options;
+                    args = implArgs;
+                    modulePath = modulePath';
+                    inherit root;
+                  };
+                };
+              in
+              module inputModuleArgs.options;
+          }
+        ) module.inputs;
+        options = inspectImpl module (computeOptions {
+          self = final;
+          errorPrefix = "while computing ${modulePath} args";
+          inherit (module) options;
+          args = options.${modulePath} or { };
+          inherit modulePath root;
+        });
+      };
+    in
+    final;
+
+  resolveMutators =
+    root: modulePath: mutators:
+    map (mutatorPath: {
+      inherit mutatorPath;
+      resolution = getModule root mutatorPath;
+    }) (map (mutatorPath: absModulePath modulePath mutatorPath) mutators);
 
   # Apply options to a module tree, returning a new module tree where modules can be called
   # with their inputs already wired up & options partially applied.
@@ -316,45 +447,50 @@ let
           # Create submodule path string
           modulePath = "/" + concatStringsSep "/" modulePath';
 
-          # Module arguments
-          args' =
-            # Take args from resolved context if it's available there.
-            args.${modulePath} or
-            # fall back to computing
-            {
-              inputs = mapAttrs (
-                _: input: (getModule tree' (absModulePath modulePath input.path)).args.options
-              ) module.inputs;
-              options = computeOptions args' "while computing ${modulePath} args" module.options (
-                options.${modulePath} or { }
-              );
+          self =
+            module
+            // {
+              # Take args from resolved context if it's available there.
+              args =
+                args.${modulePath} or (computeArgs {
+                  module = self;
+                  root = tree';
+                  inherit
+                    modulePath
+                    options
+                    ;
+                });
+              # Recurse into child modules
+              modules = mapAttrs (moduleName: recurse (modulePath' ++ [ moduleName ])) module.modules;
+            }
+            // optionalAttrs (module ? impl) {
+              # Wrap module call with computed args
+              __functor =
+                let
+                  passedOptions = options.${modulePath} or { };
+                in
+                _: options:
+                let
+                  # Concat passed options with options passed to tree eval
+                  options' = mergeOptionsUnchecked self.options passedOptions options;
+                  # Re-compute args fixpoint with passed args
+                  args = {
+                    inherit (self.args) inputs;
+                    options = inspectImpl self (computeOptions {
+                      self = args;
+                      errorPrefix = "while calling ${modulePath}";
+                      inherit (module) options;
+                      args = options';
+                      root = tree';
+                      inherit modulePath;
+                    });
+                  };
+                in
+                # Call implementation
+                callFunction self.impl args;
             };
         in
-        module
-        // {
-          args = args';
-          # Recurse into child modules
-          modules = mapAttrs (moduleName: recurse (modulePath' ++ [ moduleName ])) module.modules;
-        }
-        // optionalAttrs (module ? impl) {
-          # Wrap module call with computed args
-          __functor =
-            let
-              passedOptions = options.${modulePath} or { };
-            in
-            self: options:
-            let
-              # Concat passed options with options passed to tree eval
-              options' = mergeOptionsUnchecked self.options passedOptions options;
-              # Re-compute args fixpoint with passed args
-              args = {
-                inherit (self.args) inputs;
-                options = computeOptions args "while calling ${modulePath}" module.options options';
-              };
-            in
-            # Call implementation
-            self.impl args;
-        };
+        self;
 
       tree' = recurse [ ] root;
     in

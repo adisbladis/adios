@@ -15,18 +15,20 @@
     };
   };
 
-  impl =
-    { options, inputs }:
-    let
-      inherit (inputs."nixpkgs") pkgs;
-      inherit (pkgs) lib;
-    in
-    {
-      name = "deadnix";
-      treefmt = {
-        command = lib.getExe options.package;
-        options = [ "--edit" ];
-        includes = [ "*.nix" ];
+  mutations = {
+    "/treefmt".formatters =
+      { options, inputs }:
+      let
+        inherit (inputs."nixpkgs") pkgs;
+        inherit (pkgs) lib;
+      in
+      {
+        name = "deadnix";
+        treefmt = {
+          command = lib.getExe options.package;
+          options = [ "--edit" ];
+          includes = [ "*.nix" ];
+        };
       };
-    };
+  };
 }

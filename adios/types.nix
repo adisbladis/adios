@@ -7,6 +7,7 @@ let
     attrs
     attrsOf
     function
+    listOf
     never
     option
     optionalAttr
@@ -34,9 +35,12 @@ let
     option =
       (struct "option" {
         inherit type;
+        description = optionalAttr string;
         default = optionalAttr any;
         defaultFunc = optionalAttr function;
-        description = optionalAttr string;
+        mutators = optionalAttr (listOf string);
+        mutatorType = optionalAttr type;
+        mergeFunc = optionalAttr function;
       }).override
         {
           verify =
@@ -56,6 +60,12 @@ let
       defaultFunc = neverAttr;
     };
 
+    mutatedOption = struct "optionBeingMutated" {
+      mutators = listOf string;
+      mutatorType = type;
+      mergeFunc = function;
+    };
+
     options = attrsOf (union [
       modules.option
       modules.subOptions
@@ -73,7 +83,7 @@ let
     );
 
     inputs = attrsOf modules.input;
-
+    mutation = attrsOf function;
     lib = attrs;
   };
 
