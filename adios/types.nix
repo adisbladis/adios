@@ -37,6 +37,7 @@ let
         default = optionalAttr any;
         defaultFunc = optionalAttr function;
         description = optionalAttr string;
+        example = optionalAttr any;
       }).override
         {
           verify =
