@@ -305,6 +305,29 @@ let
         // memoResults;
     };
 
+  computeArgs =
+    {
+      root,
+      module,
+      modulePath,
+      # Options to be injected
+      passedArgs,
+    }:
+    let
+      args = {
+        inputs = mapAttrs (
+          _: input: (getModule root (absModulePath modulePath input.path)).args.options
+        ) module.inputs;
+        options = computeOptions {
+          inherit args;
+          errorPrefix = "while computing ${modulePath} args";
+          inherit (module) options;
+          passedArgs = passedArgs.${modulePath} or { };
+        };
+      };
+    in
+    args;
+
   # Apply options to a module tree, returning a new module tree where modules can be called
   # with their inputs already wired up & options partially applied.
   applyTreeOptions =
@@ -326,53 +349,46 @@ let
           # Create submodule path string
           modulePath = "/" + concatStringsSep "/" modulePath';
 
-          # Module arguments
-          args' =
-            # Take args from resolved context if it's available there.
-            args.${modulePath} or
-            # fall back to computing
-            {
-              inputs = mapAttrs (
-                _: input: (getModule tree' (absModulePath modulePath input.path)).args.options
-              ) module.inputs;
-              options = computeOptions {
-                args = args';
-                modulePath = "while computing ${modulePath} args";
-                inherit (module) options;
-                passedArgs = options.${modulePath} or { };
-              };
+          self =
+            module
+            // {
+              # Take args from resolved context if it's available there.
+              args =
+                args.${modulePath} or (computeArgs {
+                  module = self;
+                  root = tree';
+                  inherit modulePath;
+                  passedArgs = options;
+                });
+              # Recurse into child modules
+              modules = mapAttrs (moduleName: recurse (modulePath' ++ [ moduleName ])) module.modules;
+            }
+            // optionalAttrs (module ? impl) {
+              # Wrap module call with computed args
+              __functor =
+                let
+                  passedOptions = options.${modulePath} or { };
+                in
+                self: options:
+                let
+                  # Concat passed options with options passed to tree eval
+                  options' = mergeOptionsUnchecked self.options passedOptions options;
+                  # Re-compute args fixpoint with passed args
+                  args = {
+                    inherit (self.args) inputs;
+                    options = computeOptions {
+                      inherit args;
+                      errorPrefix = "while calling ${modulePath}";
+                      inherit (module) options;
+                      passedArgs = options';
+                    };
+                  };
+                in
+                # Call implementation
+                self.impl args;
             };
         in
-        module
-        // {
-          args = args';
-          # Recurse into child modules
-          modules = mapAttrs (moduleName: recurse (modulePath' ++ [ moduleName ])) module.modules;
-        }
-        // optionalAttrs (module ? impl) {
-          # Wrap module call with computed args
-          __functor =
-            let
-              passedOptions = options.${modulePath} or { };
-            in
-            self: options:
-            let
-              # Concat passed options with options passed to tree eval
-              options' = mergeOptionsUnchecked self.options passedOptions options;
-              # Re-compute args fixpoint with passed args
-              args = {
-                inherit (self.args) inputs;
-                options = computeOptions {
-                  inherit args;
-                  errorPrefix = "while calling ${modulePath}";
-                  inherit (module) options;
-                  passedArgs = options';
-                };
-              };
-            in
-            # Call implementation
-            self.impl args;
-        };
+        self;
 
       tree' = recurse [ ] root;
     in
