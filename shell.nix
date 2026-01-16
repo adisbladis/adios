@@ -8,9 +8,24 @@ let
 
   treefmt =
     let
+      # Inject some values into the root modules
+      # We use a recursive update function, to take the generic modules and add
+      # some opinionated config to them
+      overrides = {
+        modules = {
+          treefmt.options.formatters.mutators = [
+            "/treefmt/deadnix"
+            "/treefmt/statix"
+            "/treefmt/nixfmt"
+          ];
+        };
+      };
+
       # Load the root module into adios
       # This type checks modules and provides the tree API.
-      root = adios adios-contrib;
+      # Recursive update function works just like `//`, where the right side
+      # takes priority if the value already exists
+      root = adios (pkgs.lib.recursiveUpdate adios-contrib overrides);
 
       # Apply options to tree
       tree = root.eval {
@@ -20,18 +35,10 @@ let
           };
         };
       };
-
-      # Call treefmt contracts with applied pkgs
-      treefmt = tree.root.modules.treefmt;
-      fmts = treefmt.modules;
     in
-    treefmt {
+    # Call treefmt contracts with applied pkgs
+    tree.root.modules.treefmt {
       projectRootFile = "flake.nix";
-      formatters = [
-        (fmts.nixfmt { })
-        (fmts.deadnix { })
-        (fmts.statix { })
-      ];
     };
 
 in
