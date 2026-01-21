@@ -385,7 +385,7 @@ let
                   };
                 in
                 # Call implementation
-                self.impl args;
+                callFunction self.impl args;
             };
         in
         self;
