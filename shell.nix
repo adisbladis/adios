@@ -8,12 +8,8 @@ let
 
   treefmt =
     let
-      # Load the root module into adios
-      # This type checks modules and provides the tree API.
-      root = adios adios-contrib;
-
-      # Apply options to tree
-      tree = root.eval {
+      # Load the root module into adios, and apply options to tree
+      tree = adios adios-contrib {
         options = {
           "/nixpkgs" = {
             inherit pkgs;
@@ -22,7 +18,7 @@ let
       };
 
       # Call treefmt contracts with applied pkgs
-      treefmt = tree.root.modules.treefmt;
+      treefmt = tree.modules.treefmt;
       fmts = treefmt.modules;
     in
     treefmt {

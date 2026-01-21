@@ -443,8 +443,7 @@ let
                 name: if resolution.${name}.inputs ? ${key} then [ { key = name; } ] else [ ]
               ) resolutionNames;
           });
-      in
-      rec {
+
         # Overriden eval context
         evalParams = evalModuleTree {
           inherit resolution;
@@ -452,14 +451,15 @@ let
           memoArgs = removeAttrs prevEval.args diff;
           memoResults = removeAttrs prevEval.results diff;
         };
-
         # Tree context
-        root = applyTreeOptions {
+        tree = applyTreeOptions {
           inherit root;
           options = options';
           inherit (evalParams) args;
         };
-
+      in
+      tree
+      // {
         # Chained override function
         override = mkOverride root evalParams;
       }
@@ -467,35 +467,30 @@ let
 
   # Load a module tree recursively from root module
   loadTree =
-    root:
+    unloadedRoot:
     let
-      root' = loadModule root;
+      root = loadModule unloadedRoot;
     in
     {
-      root = root';
-
-      eval =
-        {
-          options ? { },
-        }:
-        optionsType.check options rec {
-          # Eval context
-          evalParams =
-            let
-              resolution = resolveTree root' (attrNames options);
-            in
-            evalModuleTree { inherit resolution options; };
-
-          # Tree context
-          root = applyTreeOptions {
-            root = root';
-            inherit options;
-            inherit (evalParams) args;
-          };
-
-          # Chained override function
-          override = mkOverride root' evalParams;
-        };
+      options ? { },
+    }:
+    let
+      # Overriden eval context
+      evalParams =
+        let
+          resolution = resolveTree root (attrNames options);
+        in
+        evalModuleTree { inherit resolution options; };
+      # Tree context
+      tree = applyTreeOptions {
+        inherit root options;
+        inherit (evalParams) args;
+      };
+    in
+    tree
+    // {
+      # Chained override function
+      override = mkOverride root evalParams;
     };
 
   adios =
