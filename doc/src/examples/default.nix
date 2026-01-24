@@ -1,4 +1,4 @@
-{ adios }:
+adios:
 {
   modules = {
     hello = import ./hello.nix { inherit adios; };

@@ -1,4 +1,4 @@
-{ adios }:
+adios:
 
 {
   name = "root";

@@ -14,9 +14,7 @@ let
 
   matchNixFile = match "(.+)\.nix$";
 
-  moduleArgs = {
-    inherit adios;
-  };
+  moduleArgs = adios;
 in
 rootPath:
 let

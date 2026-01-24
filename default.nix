@@ -1,4 +1,4 @@
 rec {
   adios = import ./adios;
-  adios-contrib = import ./contrib { inherit adios; };
+  adios-contrib = import ./contrib adios;
 }

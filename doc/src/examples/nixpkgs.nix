@@ -1,7 +1,4 @@
-{ adios }:
-let
-  inherit (adios) types;
-in
+{ types, ... }:
 {
   options = {
     pkgs = {

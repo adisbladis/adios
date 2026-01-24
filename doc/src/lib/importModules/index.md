@@ -40,7 +40,7 @@ depend on another module defined within its folder, it should import those modul
 - Either be defined as:
   - a subfolder, under `$MODULE_NAME/default.nix`.
   - a Nix file, under `$MODULE_NAME.nix` (excluding `default.nix`).
-- take `{ adios }:` as the file's inputs
+- take either `adios:` as the file's input, or a destructed version (commonly `{ types, ... }:` to only take `adios.types`)
 - use the same name as the folder it's contained within
 
 If your module tree doesn't follow this schema, then it's recommended to define your import logic manually. `importTree`

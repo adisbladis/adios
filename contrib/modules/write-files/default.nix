@@ -1,9 +1,5 @@
-{
-  adios,
-}:
+{ types, ... }:
 let
-  inherit (adios) types;
-
   self = {
     name = "write-files";
 

@@ -1,6 +1,5 @@
-{ adios }:
+{ types, ... }:
 let
-  inherit (adios) types;
   inherit (types)
     optionalAttr
     listOf
