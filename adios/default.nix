@@ -257,6 +257,18 @@ let
         })
     );
 
+  # When inspecting the args passed to a module within an `impl` or
+  # `defaultFunc`, include the functor to call the module's impl directly.
+  inspectImpl =
+    module: oldArgs:
+    if module ? impl then
+      oldArgs
+      // {
+        __functor = _: newArgs: module newArgs;
+      }
+    else
+      oldArgs;
+
   evalModuleTree =
     {
       # Passed options
@@ -316,14 +328,42 @@ let
     let
       args = {
         inputs = mapAttrs (
-          _: input: (getModule root (absModulePath modulePath input.path)).args.options
+          _: input:
+          let
+            inputPath = absModulePath modulePath input.path;
+            inputModule = getModule root inputPath;
+          in
+          inputModule.args.options
+          // optionalAttrs (inputModule ? impl) {
+            __functor =
+              _: implOptions:
+              let
+                args =
+                  # Reuse existing args if impl isn't being passed anything new
+                  if implOptions == { } then
+                    inputModule.args.options
+                  else
+                    # If any new args are passed, recompute the options, so any
+                    # defaultFuncs are updated
+                    {
+                      inherit (inputModule.args) inputs;
+                      options = computeOptions {
+                        inherit args;
+                        inherit (inputModule) options;
+                        errorPrefix = "while calling ${inputPath}";
+                        passedArgs = implOptions;
+                      };
+                    };
+              in
+              callFunction inputModule.impl args;
+          }
         ) module.inputs;
-        options = computeOptions {
+        options = inspectImpl module (computeOptions {
           inherit args;
           errorPrefix = "while computing ${modulePath} args";
           inherit (module) options;
           passedArgs = passedArgs.${modulePath} or { };
-        };
+        });
       };
     in
     args;
@@ -377,13 +417,13 @@ let
                       # Re-compute args fixpoint with passed args
                       {
                         inherit (self.args) inputs;
-                        options = computeOptions {
+                        options = inspectImpl self (computeOptions {
                           inherit args;
                           inherit (module) options;
                           errorPrefix = "while calling ${modulePath}";
                           # Concat passed options with options passed to tree eval
                           passedArgs = mergeOptionsUnchecked self.options passedOptions implOptions;
-                        };
+                        });
                       };
                 in
                 # Call implementation
