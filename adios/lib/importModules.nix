@@ -9,59 +9,52 @@ let
     listToAttrs
     match
     head
-    filter
     ;
 
   matchNixFile = match "(.+)\.nix$";
-
   moduleArgs = adios;
 in
 rootPath:
 let
   files = readDir rootPath;
-  filenames = attrNames files;
-
-  moduleDirs = filter (
-    name: files.${name} == "directory" && pathExists "${toString rootPath}/${name}/default.nix"
-  ) filenames;
-
+  filenames = attrNames (readDir rootPath);
 in
 listToAttrs (
-  map (name: {
-    inherit name;
-    value = import "${toString rootPath}/${name}/default.nix" moduleArgs;
-  }) moduleDirs
-)
-// listToAttrs (
   concatMap (
-    filename:
-    if filename == "default.nix" || files.${filename} == "directory" then
-      [ ]
+    name:
+    if files.${name} == "directory" then
+      if pathExists "${toString rootPath}/${name}/default.nix" then
+        [
+          {
+            inherit name;
+            value = import "${toString rootPath}/${name}/default.nix" moduleArgs;
+          }
+        ]
+      else
+        [ ]
     else
-      (
-        let
-          m = matchNixFile filename;
-          moduleName = head m;
-        in
-        if m == null then
-          [ ]
-        else
-          [
-            {
-              name =
-                if moduleDirs ? ${moduleName} then
-                  throw ''
-                    Module ${moduleName} was provided by both:
-                    - ${rootPath}/${moduleName}/default.nix
-                    - ${filename}
+      let
+        m = matchNixFile name;
+        moduleName = head m;
+      in
+      if m == null || name == "default.nix" then
+        [ ]
+      else
+        [
+          {
+            name =
+              if files ? ${moduleName} then
+                throw ''
+                  Module ${moduleName} was provided by both:
+                  - ${rootPath}/${moduleName}/default.nix
+                  - ${name}
 
-                    This is ambigious. Restructure your code to not have ambigious module names.
-                  ''
-                else
-                  moduleName;
-              value = import "${toString rootPath}/${filename}" moduleArgs;
-            }
-          ]
-      )
+                  This is ambigious. Restructure your code to not have ambigious module names.
+                ''
+              else
+                moduleName;
+            value = import "${toString rootPath}/${name}" moduleArgs;
+          }
+        ]
   ) filenames
 )
