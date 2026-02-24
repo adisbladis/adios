@@ -218,18 +218,16 @@ let
       # Assert that module input begins with a /
       if head tokens != "" then
         throw ''
-          Module path `${name}` didn't start with a slash, when it was expected to.
-          This likely means you used the incorrect name during the eval stage.
-          A module path should look something like "/nixpkgs", which refers to `root.modules.nixpkgs`,
-          and lets us set the options for that module.
+          Module path `${name}` does not start with a slash.
+          Module paths should look like "/nixpkgs", which refers to `root.modules.nixpkgs`.
         ''
       else
         foldl' (
           module: tok:
           if !module.modules ? ${tok} then
             throw ''
-              Module path `${tok}` wasn't a child module of `${module.name or anonymousModuleName}`.
-              Valid children of `${module.name}`: [${concatStringsSep ", " (attrNames module.modules)}]
+              Module path `${tok}` is not a child module of `${module.name or anonymousModuleName}`.
+              Valid children of `${module.name or anonymousModuleName}`: [${concatStringsSep ", " (attrNames module.modules)}]
             ''
           else
             module.modules.${tok}
