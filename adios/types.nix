@@ -75,6 +75,16 @@ let
 
     inputs = attrsOf modules.input;
 
+    contract = struct "contract" {
+      merge = function;
+    };
+
+    # list of path strings, e.g. [ "/user" "/etcFile" ]
+    publish = korora.listOf (typedef "pathstring" isString);
+
+    # list of path strings
+    subscribe = korora.listOf (typedef "pathstring" isString);
+
     lib = attrs;
   };
 
