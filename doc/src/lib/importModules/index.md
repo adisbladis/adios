@@ -23,7 +23,7 @@ If the root module at `default.nix` is defined like this:
 {{#include root.nix}}
 ```
 
-Then `importTree` will generate:
+Then `importModules` will generate:
 ```nix
 {{#include rootExpanded.nix}}
 ```
@@ -36,12 +36,12 @@ depend on another module defined within its folder, it should import those modul
 
 ## Limitations
 
-`importTree` expects all modules to:
+`importModules` expects all modules to:
 - Either be defined as:
   - a subfolder, under `$MODULE_NAME/default.nix`.
   - a Nix file, under `$MODULE_NAME.nix` (excluding `default.nix`).
 - take either `adios:` as the file's input, or a destructed version (commonly `{ types, ... }:` to only take `adios.types`)
 - use the same name as the folder it's contained within
 
-If your module tree doesn't follow this schema, then it's recommended to define your import logic manually. `importTree`
+If your module tree doesn't follow this schema, then it's recommended to define your import logic manually. `importModules`
 is only a convenience function, and it's okay to not use it if your tree doesn't fit its schema.
